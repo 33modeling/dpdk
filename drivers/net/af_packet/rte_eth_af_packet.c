@@ -13,6 +13,7 @@
 #include <ethdev_vdev.h>
 #include <rte_malloc.h>
 #include <rte_kvargs.h>
+#include <rte_time.h>
 #include <bus_vdev_driver.h>
 
 #include <ctype.h>
@@ -701,6 +702,17 @@ eth_dev_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 	return 0;
 }
 
+/* Packet timestamps from the Linux networking stack use the realtime clock. */
+static int
+eth_dev_read_clock(struct rte_eth_dev *dev __rte_unused, uint64_t *clock)
+{
+	struct timespec ts;
+
+	timespec_get(&ts, TIME_UTC);
+	*clock = rte_timespec_to_ns(&ts);
+	return 0;
+}
+
 static int
 eth_dev_macaddr_set(struct rte_eth_dev *dev, struct rte_ether_addr *addr)
 {
@@ -780,6 +792,7 @@ static const struct eth_dev_ops ops = {
 	.mtu_set = eth_dev_mtu_set,
 	.promiscuous_enable = eth_dev_promiscuous_enable,
 	.promiscuous_disable = eth_dev_promiscuous_disable,
+	.read_clock = eth_dev_read_clock,
 	.rx_queue_setup = eth_rx_queue_setup,
 	.tx_queue_setup = eth_tx_queue_setup,
 	.link_update = eth_link_update,

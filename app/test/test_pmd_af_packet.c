@@ -26,6 +26,7 @@
 #include <rte_mbuf.h>
 #include <rte_mempool.h>
 #include <rte_stdatomic.h>
+#include <rte_time.h>
 
 #include "test.h"
 
@@ -397,6 +398,36 @@ test_af_packet_dev_info(void)
 		    "Expected VLAN_STRIP RX offload capability");
 	TEST_ASSERT(dev_info.rx_offload_capa & RTE_ETH_RX_OFFLOAD_TIMESTAMP,
 		    "Expected TIMESTAMP RX offload capability");
+
+	return TEST_SUCCESS;
+}
+
+/*
+ * Test: Read clock uses the same time reference as packet timestamps.
+ */
+static int
+test_af_packet_read_clock(void)
+{
+	struct timespec before, after;
+	uint64_t before_ns, device_clock, after_ns;
+	int ret;
+
+	if (!tap_created || port_id >= RTE_MAX_ETHPORTS) {
+		printf("SKIPPED: Port not available (need root)\n");
+		return TEST_SKIPPED;
+	}
+
+	TEST_ASSERT(timespec_get(&before, TIME_UTC) == TIME_UTC,
+		    "Failed to read system clock before device clock");
+	ret = rte_eth_read_clock(port_id, &device_clock);
+	TEST_ASSERT_SUCCESS(ret, "Failed to read AF_PACKET clock");
+	TEST_ASSERT(timespec_get(&after, TIME_UTC) == TIME_UTC,
+		    "Failed to read system clock after device clock");
+
+	before_ns = rte_timespec_to_ns(&before);
+	after_ns = rte_timespec_to_ns(&after);
+	TEST_ASSERT(device_clock >= before_ns && device_clock <= after_ns,
+		    "AF_PACKET clock value is outside the system clock interval");
 
 	return TEST_SUCCESS;
 }
@@ -1090,6 +1121,7 @@ static struct unit_test_suite af_packet_test_suite = {
 	.unit_test_cases = {
 		/* Tests that don't modify device state */
 		TEST_CASE(test_af_packet_dev_info),
+		TEST_CASE(test_af_packet_read_clock),
 		TEST_CASE(test_af_packet_link_status),
 		TEST_CASE(test_af_packet_stats_init),
 		TEST_CASE(test_af_packet_tx),
